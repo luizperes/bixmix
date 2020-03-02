@@ -37,16 +37,23 @@ def breakFlagsIfNeeded(flags):
         newFlags.extend(f.split())
     return newFlags
 
+def findLLVMFolders(llvmsfile):
+    if not os.path.exists(llvmsfile):
+        return [""]
+    else:
+        return pipe(llvmsfile, readFile)
+
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("-c", "--flags-file", dest="flags", default=os.path.join('.', 'flags'), help="flags filepath")
+    argparser.add_argument("-l", "--llvm-file", dest="llvms", default=os.path.join('.', 'llvms'), help="LLVM filepath")
     argparser.add_argument("-b", "--build-path", dest="buildfolder", default=os.path.join('.', 'build'), help="LLVM build folder")
     argparser.add_argument("-e", "--expression", dest="regex", default="[a-c]", help="Regular expression")
     argparser.add_argument("-t", "--target", dest="target", default=os.path.join('.', 'script.py'), help="File target for comparison")
     args = argparser.parse_args()
 
     flagset = pipe(args.flags, readFile, allCombinations)
-    folders = [""]
+    folders = findLLVMFolders(args.llvms)
     for flags in flagset:
         mapFn = lambda folder: pipe(
                     flags,
