@@ -31,7 +31,7 @@ def mkname(folder, regex, target, flags, buildfolder):
     print(str(command))
     return command
 
-def breakFlagsIfNeed(flags):
+def breakFlagsIfNeeded(flags):
     newFlags = []
     for f in flags:
         newFlags.extend(f.split())
@@ -50,9 +50,9 @@ if __name__ == '__main__':
     for flags in flagset:
         mapFn = lambda folder: pipe(
                     flags,
-                    breakFlagsIfNeed,
+                    breakFlagsIfNeeded,
                     lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
                     lambda c: run(c)
                 )
-        result = pipe(map(mapFn, folders), list)
-        print("".join(result))
+        result = pipe(map(mapFn, folders), lambda arr: map(str, arr))
+        print(" ".join(result))
