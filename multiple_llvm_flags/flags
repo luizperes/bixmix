@@ -1,0 +1,2 @@
+-regalloc=basic --optimize-regalloc
+-fast-isel=true
