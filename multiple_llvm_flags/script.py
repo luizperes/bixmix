@@ -22,8 +22,14 @@ def pipe(data, *funcs):
         data = func(data)
     return data
 
+# TODO: generate a file in the format
+# datetime | filename | regular expression | LLVM version | icgrep revision | icgrep time | none time | none asm size |
+# less time | less asm size | default time | default asm size | aggressive time | aggressive asm size
 def run(what, otherflags):
-    return subprocess.check_output(what + otherflags)
+    perf_command = ["perf", "stat"] + what + otherflags
+    asm_command = what + otherflags + ["-ShowASM=asm"]
+    subprocess.check_output(asm_command)
+    return subprocess.check_output(perf_command)
 
 def mkname(folder, regex, target, flags, buildfolder):
     buildpath = os.path.join(buildfolder, os.path.join(folder, "bin/icgrep"))
