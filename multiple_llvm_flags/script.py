@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import argparse
@@ -28,29 +30,46 @@ def pipe(data, *funcs):
     return data
 
 def stripString(s, begin, end):
-    posB = s.find(begin) + len(begin)
-    posE = s.find(end, posB)
-    return s[posB:posE]
+    decoded = str(s)
+    posB = decoded.find(begin) + len(begin)
+    posE = decoded.find(end, posB)
+    return decoded[posB:posE]
 
 def stripVersions(s):
-    llvmVersion = stripString(s, "LLVM version ", "\n")
-    unicodeVersion = stripString(s, "Unicode version ", "\n")
-    parabixRevision = stripString(s, "Parabix revision ", "\n")
+    llvmVersion = stripString(s, "LLVM version ", "\\n")
+    unicodeVersion = stripString(s, "Unicode version ", "\\n")
+    parabixRevision = stripString(s, "Parabix revision ", "\\n")
     return [llvmVersion, unicodeVersion, parabixRevision]
+
+def stripIcGrepCompileTime(s):
+    return "A"
+
+def stripPerfStatTime(s):
+    return "B"
+
+def runAndReturnSizeFile(s, file):
+    return "C"
 
 # TODO: generate a file in the format
 # datetime | filename | regular expression | LLVM version | Unicode version | parabix revision |
 # none icgrep compile time | none total time | none asm size |
 # less icgrep compile time | less total time | less asm size |
-# default icgrep compile time | default total time | default asm size |
+# standard icgrep compile time | standard total time | standard asm size |
 # aggressive icgrep compile time | aggressive total time | aggressive asm size
-def run(what, otherflags, filename, regex, delimiter=" | "):
+def run(what, otherflags, filename, regex, delimiter=" | ", timeout=60, asmFile="asm"):
     output = [str(datetime.now()), filename, regex]
     output += stripVersions(subprocess.check_output(what + ["--version"]))
-
-    perf_command = ["perf", "stat"] + what + otherflags
-    asm_command = what + otherflags + ["-ShowASM=asm"]
-    subprocess.check_output(asm_command)
+    command = what + otherflags + ["-enable-object-cache=0"]
+    opt_levels = ["none", "less", "standard", "aggressive"]
+    for opt_level in opt_levels:
+        try:
+            command_opt_level = command + ["-backend-optimization-level=" + opt_level]
+            output += stripIcGrepCompileTime(subprocess.check_output(command_opt_level + ["-kernel-time-passes"], timeout=timeout))
+            output += stripPerfStatTime(subprocess.check_output(["perf", "stat"] + command_opt_level, timeout=timeout))
+            output += runAndReturnSizeFile(subprocess.check_output(command_opt_level + ["-ShowASM=" + asmFile], timeout=timeout), asmFile)
+        except:
+           output += ["inf", "inf", "inf"]
+           continue
     return delimiter.join(output)
 
 def mkname(folder, regex, target, flags, buildfolder):
