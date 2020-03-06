@@ -8,6 +8,10 @@ def readFile(filename):
     with open(filename, 'r') as f:
         return [line[:-1] for line in f]
 
+def saveInFile(filename, what):
+    with open(filename, 'w+') as f:
+        f.write(what + "\n")
+
 def allCombinations(args=[]):
     arr = []
     for i in range(len(args)):
@@ -52,6 +56,7 @@ def findLLVMFolders(llvmsfile):
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("-c", "--flags-file", dest="flags", default=os.path.join('.', 'flags'), help="flags filepath")
+    argparser.add_argument("-f", "--final-file", dest="finalfile", default=os.path.join('.', 'finalfile'), help="output filepath")
     argparser.add_argument("-l", "--llvm-file", dest="llvms", default=os.path.join('.', 'llvms'), help="LLVM filepath")
     argparser.add_argument("-b", "--build-path", dest="buildfolder", default=os.path.join('.', 'build'), help="LLVM build folder")
     argparser.add_argument("-x", "--expression", dest="regex", default="[a-c]", help="Regular expression")
@@ -68,4 +73,4 @@ if __name__ == '__main__':
                     lambda c: run(c, otherflags)
                 )
         result = pipe(map(mapFn, folders), lambda arr: map(str, arr))
-        print(" ".join(result))
+        saveInFile(args.finalfile, " ".join(result))
