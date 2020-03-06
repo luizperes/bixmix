@@ -27,12 +27,27 @@ def pipe(data, *funcs):
         data = func(data)
     return data
 
-# TODO: generate a file in the format
-# datetime | filename | regular expression | LLVM version | Unicode version | icgrep revision | icgrep time | none time | none asm size |
-# less time | less asm size | default time | default asm size | aggressive time | aggressive asm size
+def stripString(s, begin, end):
+    posB = s.find(begin) + len(begin)
+    posE = s.find(end, posB)
+    return s[posB:posE]
 
+def stripVersions(s):
+    llvmVersion = stripString(s, "LLVM version ", "\n")
+    unicodeVersion = stripString(s, "Unicode version ", "\n")
+    parabixRevision = stripString(s, "Parabix revision ", "\n")
+    return [llvmVersion, unicodeVersion, parabixRevision]
+
+# TODO: generate a file in the format
+# datetime | filename | regular expression | LLVM version | Unicode version | parabix revision |
+# none icgrep compile time | none total time | none asm size |
+# less icgrep compile time | less total time | less asm size |
+# default icgrep compile time | default total time | default asm size |
+# aggressive icgrep compile time | aggressive total time | aggressive asm size
 def run(what, otherflags, filename, regex, delimiter=" | "):
     output = [str(datetime.now()), filename, regex]
+    output += stripVersions(subprocess.check_output(what + ["--version"]))
+
     perf_command = ["perf", "stat"] + what + otherflags
     asm_command = what + otherflags + ["-ShowASM=asm"]
     subprocess.check_output(asm_command)
