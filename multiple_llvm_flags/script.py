@@ -3,6 +3,7 @@ import subprocess
 import argparse
 import sys
 import itertools
+from datetime import datetime
 
 def readFile(filename):
     with open(filename, 'r') as f:
@@ -27,13 +28,15 @@ def pipe(data, *funcs):
     return data
 
 # TODO: generate a file in the format
-# datetime | filename | regular expression | LLVM version | icgrep revision | icgrep time | none time | none asm size |
+# datetime | filename | regular expression | LLVM version | Unicode version | icgrep revision | icgrep time | none time | none asm size |
 # less time | less asm size | default time | default asm size | aggressive time | aggressive asm size
-def run(what, otherflags):
+
+def run(what, otherflags, filename, regex, delimiter=" | "):
+    output = [str(datetime.now()), filename, regex]
     perf_command = ["perf", "stat"] + what + otherflags
     asm_command = what + otherflags + ["-ShowASM=asm"]
     subprocess.check_output(asm_command)
-    return subprocess.check_output(perf_command)
+    return delimiter.join(output)
 
 def mkname(folder, regex, target, flags, buildfolder):
     buildpath = os.path.join(buildfolder, os.path.join(folder, "bin/icgrep"))
@@ -70,7 +73,7 @@ if __name__ == '__main__':
                     flags,
                     breakFlagsIfNeeded,
                     lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
-                    lambda c: run(c, otherflags)
+                    lambda c: run(c, otherflags, args.target, args.regex)
                 )
         result = pipe(map(mapFn, folders), lambda arr: map(str, arr))
         saveInFile(args.finalfile, " ".join(result))
