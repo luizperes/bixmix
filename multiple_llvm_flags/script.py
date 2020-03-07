@@ -69,6 +69,15 @@ def runAndReturnSizeFile(s, filename):
     out = str(os.path.getsize(filename))
     return [out]
 
+def runProc(command, timeout):
+    with subprocess.Popen(command, stderr=subprocess.PIPE) as popen:
+        try:
+            _, errs = popen.communicate(timeout=timeout)
+            return errs
+        except Exception as e:
+            popen.kill()
+            raise e
+
 # Append to the CSV file in the format
 #
 # datetime, filename, regular expression, LLVM version, Unicode version, parabix revision,
@@ -87,13 +96,13 @@ def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="
         try:
             command_opt_level = command + ["-backend-optimization-level=" + opt_level]
             timeKernelCmd = command_opt_level + ["-kernel-time-passes"]
-            output += stripIcGrepCompileTime(subprocess.check_output(timeKernelCmd, stderr=subprocess.STDOUT, timeout=timeout))
+            output += stripIcGrepCompileTime(runProc(timeKernelCmd, timeout=timeout))
             logging.info("time kernel command: " + " ".join(timeKernelCmd))
             perfCmd = ["perf", "stat"] + command_opt_level
-            output += stripPerfStatTime(subprocess.check_output(perfCmd, stderr=subprocess.STDOUT, timeout=timeout))
+            output += stripPerfStatTime(runProc(perfCmd, timeout=timeout))
             logging.info("perf stat command: " + " ".join(perfCmd))
             asmCmd = command_opt_level + ["-ShowASM=" + asmFile]
-            output += runAndReturnSizeFile(subprocess.check_output(asmCmd, stderr=subprocess.STDOUT, timeout=timeout), asmFile)
+            output += runAndReturnSizeFile(runProc(asmCmd, timeout=timeout), asmFile)
             logging.info("asm command: " + " ".join(perfCmd))
         except Exception as e:
             output += ["inf", "inf", "inf"]
