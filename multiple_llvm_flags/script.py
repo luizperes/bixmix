@@ -5,6 +5,8 @@ import subprocess
 import argparse
 import sys
 import itertools
+import logging
+import tqdm
 from datetime import datetime
 
 def readFile(filename):
@@ -76,24 +78,33 @@ def runAndReturnSizeFile(s, filename):
 # aggressive icgrep compile time, aggressive total time, aggressive asm size
 def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="asm"):
     output = [str(datetime.now()), filename, regex]
-    output += stripVersions(subprocess.check_output(what + ["--version"]))
+    versionCmd = what + ["--version"]
+    output += stripVersions(subprocess.check_output(versionCmd))
+    logging.info("version command: " + " ".join(versionCmd))
     command = what + otherflags + ["-enable-object-cache=0"]
     opt_levels = ["none", "less", "standard", "aggressive"]
     for opt_level in opt_levels:
         try:
             command_opt_level = command + ["-backend-optimization-level=" + opt_level]
-            output += stripIcGrepCompileTime(subprocess.check_output(command_opt_level + ["-kernel-time-passes"], stderr=subprocess.STDOUT, timeout=timeout))
-            output += stripPerfStatTime(subprocess.check_output(["perf", "stat"] + command_opt_level, stderr=subprocess.STDOUT, timeout=timeout))
-            output += runAndReturnSizeFile(subprocess.check_output(command_opt_level + ["-ShowASM=" + asmFile], stderr=subprocess.STDOUT, timeout=timeout), asmFile)
-        except:
-           output += ["inf", "inf", "inf"]
-           continue
+            timeKernelCmd = command_opt_level + ["-kernel-time-passes"]
+            output += stripIcGrepCompileTime(subprocess.check_output(timeKernelCmd, stderr=subprocess.STDOUT, timeout=timeout))
+            logging.info("time kernel command: " + " ".join(timeKernelCmd))
+            perfCmd = ["perf", "stat"] + command_opt_level
+            output += stripPerfStatTime(subprocess.check_output(perfCmd, stderr=subprocess.STDOUT, timeout=timeout))
+            logging.info("perf stat command: " + " ".join(perfCmd))
+            asmCmd = command_opt_level + ["-ShowASM=" + asmFile]
+            output += runAndReturnSizeFile(subprocess.check_output(asmCmd, stderr=subprocess.STDOUT, timeout=timeout), asmFile)
+            logging.info("asm command: " + " ".join(perfCmd))
+        except Exception as e:
+            output += ["inf", "inf", "inf"]
+            logging.error("error raised: ", e)
+            continue
     return delimiter.join(output)
 
 def mkname(folder, regex, target, flags, buildfolder):
     buildpath = os.path.join(buildfolder, os.path.join(folder, "bin/icgrep"))
     command = pipe([buildpath, regex, target], lambda lst: lst + flags)
-    print(str(command))
+    logging.info("root command: " + " ".join(command))
     return command
 
 def breakFlagsIfNeeded(flags):
@@ -116,12 +127,15 @@ if __name__ == '__main__':
     argparser.add_argument("-b", "--build-path", dest="buildfolder", default=os.path.join('.', 'build'), help="LLVM build folder")
     argparser.add_argument("-x", "--expression", dest="regex", default="[a-c]", help="Regular expression")
     argparser.add_argument("-t", "--target", dest="target", default=os.path.join('.', 'script.py'), help="File target for comparison")
+    argparser.add_argument("-z", "--logfile", dest="logfile", default=os.path.join('.', 'log'), help="log file for debugging")
     args, otherflags = argparser.parse_known_args()
+
+    logging.basicConfig(filename=args.logfile, filemode='w', level=logging.DEBUG)
 
     createCSV(args.finalfile)
     flagset = pipe(args.flags, readFile, allCombinations)
     folders = findLLVMFolders(args.llvms)
-    for flags in flagset:
+    for flags in tqdm.tqdm(flagset):
         mapFn = lambda folder: pipe(
                     flags,
                     breakFlagsIfNeeded,
