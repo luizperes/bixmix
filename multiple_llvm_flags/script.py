@@ -12,8 +12,18 @@ def readFile(filename):
         return [line[:-1] for line in f]
 
 def saveInFile(filename, what):
-    with open(filename, 'w+') as f:
+    with open(filename, 'a') as f:
         f.write(what + "\n")
+
+def createCSV(filename, delimiter=', '):
+    if not os.path.exists(filename):
+        value  = "datetime, filename, regular expression, LLVM version, Unicode version, parabix revision, "
+        value += "none icgrep compile time, none total time, none asm size, "
+        value += "less icgrep compile time, less total time, less asm size, "
+        value += "standard icgrep compile time, standard total time, standard asm size, "
+        value += "aggressive icgrep compile time, aggressive total time, aggressive asm size"
+        with open(filename, 'a') as f:
+            f.write(value + "\n")
 
 def allCombinations(args=[]):
     arr = []
@@ -46,21 +56,25 @@ def stripVersions(s):
 
 def stripIcGrepCompileTime(s):
     out = stripString(s, "Execution Time: ", " seconds", "Kernel Generation\\n")
+    return [out.strip()]
+
+def stripPerfStatTime(s, padding="per insn"):
+    spaces = " " * len(padding)
+    out = stripString(s, "\\n\\n", " seconds", "of all branches" + spaces)
+    return [out.strip()]
+
+def runAndReturnSizeFile(s, filename):
+    out = str(os.path.getsize(filename))
     return [out]
 
-def stripPerfStatTime(s):
-    return "B"
-
-def runAndReturnSizeFile(s, file):
-    return "C"
-
-# TODO: generate a file in the format
-# datetime | filename | regular expression | LLVM version | Unicode version | parabix revision |
-# none icgrep compile time | none total time | none asm size |
-# less icgrep compile time | less total time | less asm size |
-# standard icgrep compile time | standard total time | standard asm size |
-# aggressive icgrep compile time | aggressive total time | aggressive asm size
-def run(what, otherflags, filename, regex, delimiter=" | ", timeout=60, asmFile="asm"):
+# Append to the CSV file in the format
+#
+# datetime, filename, regular expression, LLVM version, Unicode version, parabix revision,
+# none icgrep compile time, none total time, none asm size,
+# less icgrep compile time, less total time, less asm size,
+# standard icgrep compile time, standard total time, standard asm size,
+# aggressive icgrep compile time, aggressive total time, aggressive asm size
+def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="asm"):
     output = [str(datetime.now()), filename, regex]
     output += stripVersions(subprocess.check_output(what + ["--version"]))
     command = what + otherflags + ["-enable-object-cache=0"]
@@ -97,13 +111,14 @@ def findLLVMFolders(llvmsfile):
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("-c", "--flags-file", dest="flags", default=os.path.join('.', 'flags'), help="flags filepath")
-    argparser.add_argument("-f", "--final-file", dest="finalfile", default=os.path.join('.', 'finalfile'), help="output filepath")
+    argparser.add_argument("-f", "--final-file", dest="finalfile", default=os.path.join('.', 'output.csv'), help="output filepath")
     argparser.add_argument("-l", "--llvm-file", dest="llvms", default=os.path.join('.', 'llvms'), help="LLVM filepath")
     argparser.add_argument("-b", "--build-path", dest="buildfolder", default=os.path.join('.', 'build'), help="LLVM build folder")
     argparser.add_argument("-x", "--expression", dest="regex", default="[a-c]", help="Regular expression")
     argparser.add_argument("-t", "--target", dest="target", default=os.path.join('.', 'script.py'), help="File target for comparison")
     args, otherflags = argparser.parse_known_args()
 
+    createCSV(args.finalfile)
     flagset = pipe(args.flags, readFile, allCombinations)
     folders = findLLVMFolders(args.llvms)
     for flags in flagset:
