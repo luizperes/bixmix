@@ -29,9 +29,12 @@ def pipe(data, *funcs):
         data = func(data)
     return data
 
-def stripString(s, begin, end):
+def stripString(s, begin, end, startFrom=None):
     decoded = str(s)
-    posB = decoded.find(begin) + len(begin)
+    beginIdx = 0
+    if startFrom is not None:
+        beginIdx = decoded.find(startFrom)
+    posB = decoded.find(begin, beginIdx) + len(begin)
     posE = decoded.find(end, posB)
     return decoded[posB:posE]
 
@@ -42,7 +45,8 @@ def stripVersions(s):
     return [llvmVersion, unicodeVersion, parabixRevision]
 
 def stripIcGrepCompileTime(s):
-    return "A"
+    out = stripString(s, "Execution Time: ", " seconds", "Kernel Generation\\n")
+    return [out]
 
 def stripPerfStatTime(s):
     return "B"
@@ -64,9 +68,9 @@ def run(what, otherflags, filename, regex, delimiter=" | ", timeout=60, asmFile=
     for opt_level in opt_levels:
         try:
             command_opt_level = command + ["-backend-optimization-level=" + opt_level]
-            output += stripIcGrepCompileTime(subprocess.check_output(command_opt_level + ["-kernel-time-passes"], timeout=timeout))
-            output += stripPerfStatTime(subprocess.check_output(["perf", "stat"] + command_opt_level, timeout=timeout))
-            output += runAndReturnSizeFile(subprocess.check_output(command_opt_level + ["-ShowASM=" + asmFile], timeout=timeout), asmFile)
+            output += stripIcGrepCompileTime(subprocess.check_output(command_opt_level + ["-kernel-time-passes"], stderr=subprocess.STDOUT, timeout=timeout))
+            output += stripPerfStatTime(subprocess.check_output(["perf", "stat"] + command_opt_level, stderr=subprocess.STDOUT, timeout=timeout))
+            output += runAndReturnSizeFile(subprocess.check_output(command_opt_level + ["-ShowASM=" + asmFile], stderr=subprocess.STDOUT, timeout=timeout), asmFile)
         except:
            output += ["inf", "inf", "inf"]
            continue
