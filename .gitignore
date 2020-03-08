@@ -133,4 +133,4 @@ dmypy.json
 .pyre/
 
 asm
-output.csv
+*.csv

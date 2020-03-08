@@ -7,6 +7,7 @@ import sys
 import itertools
 import logging
 import tqdm
+from functools import reduce
 from datetime import datetime
 
 def readFile(filename):
@@ -17,13 +18,16 @@ def saveInFile(filename, what):
     with open(filename, 'a') as f:
         f.write(what + "\n")
 
-def createCSV(filename, delimiter=', '):
+def createCSV(filename, delimiter=', ', opt=1):
     if not os.path.exists(filename):
-        value  = "datetime, filename, regular expression, LLVM version, Unicode version, parabix revision, "
-        value += "none icgrep compile time, none total time, none asm size, "
-        value += "less icgrep compile time, less total time, less asm size, "
-        value += "standard icgrep compile time, standard total time, standard asm size, "
-        value += "aggressive icgrep compile time, aggressive total time, aggressive asm size"
+        if opt == 1:
+            value  = "datetime, filename, regular expression, LLVM version, Unicode version, parabix revision, "
+            value += "none icgrep compile time, none total time, none asm size, "
+            value += "less icgrep compile time, less total time, less asm size, "
+            value += "standard icgrep compile time, standard total time, standard asm size, "
+            value += "aggressive icgrep compile time, aggressive total time, aggressive asm size"
+        else:
+            value = "runtime, command"
         with open(filename, 'a') as f:
             f.write(value + "\n")
 
@@ -63,7 +67,7 @@ def stripIcGrepCompileTime(s):
 def stripPerfStatTime(s, padding="per insn"):
     spaces = " " * len(padding)
     out = stripString(s, "\\n\\n", " seconds", "of all branches" + spaces)
-    return [out.strip()]
+    return (float(out.strip()), [out.strip()])
 
 def runAndReturnSizeFile(s, filename):
     out = str(os.path.getsize(filename))
@@ -92,6 +96,7 @@ def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="
     logging.info("version command: " + " ".join(versionCmd))
     command = what + otherflags + ["-enable-object-cache=0"]
     opt_levels = ["none", "less", "standard", "aggressive"]
+    runtime = []
     for opt_level in opt_levels:
         try:
             command_opt_level = command + ["-backend-optimization-level=" + opt_level]
@@ -99,16 +104,19 @@ def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="
             output += stripIcGrepCompileTime(runProc(timeKernelCmd, timeout=timeout))
             logging.info("time kernel command: " + " ".join(timeKernelCmd))
             perfCmd = ["perf", "stat"] + command_opt_level
-            output += stripPerfStatTime(runProc(perfCmd, timeout=timeout))
+            (time, out) = stripPerfStatTime(runProc(perfCmd, timeout=timeout))
+            output += out
+            runtime += [(time, command_opt_level)]
             logging.info("perf stat command: " + " ".join(perfCmd))
             asmCmd = command_opt_level + ["-ShowASM=" + asmFile]
             output += runAndReturnSizeFile(runProc(asmCmd, timeout=timeout), asmFile)
             logging.info("asm command: " + " ".join(perfCmd))
         except Exception as e:
             output += ["inf", "inf", "inf"]
+            runtime += [(sys.maxsize, command)]
             logging.error("error raised: ", e)
             continue
-    return delimiter.join(output)
+    return (runtime, delimiter.join(output))
 
 def mkname(folder, regex, target, flags, buildfolder):
     buildpath = os.path.join(buildfolder, os.path.join(folder, "bin/icgrep"))
@@ -128,10 +136,24 @@ def findLLVMFolders(llvmsfile):
     else:
         return pipe(llvmsfile, readFile)
 
+def save(res, outfile, runFile):
+    (runtime, output) = res
+    saveInFile(outfile, output)
+    best = 0
+    for i in range(1, len(runtime)):
+        (besttime, _) = runtime[best]
+        (comptime, _) = runtime[i]
+        if comptime < besttime:
+            best = i
+    (time, command) = runtime[best]
+    val = str(time) + ", " + " ".join(command)
+    saveInFile(runFile, val)
+
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("-c", "--flags-file", dest="flags", default=os.path.join('.', 'flags'), help="flags filepath")
     argparser.add_argument("-f", "--final-file", dest="finalfile", default=os.path.join('.', 'output.csv'), help="output filepath")
+    argparser.add_argument("-r", "--runtime-file", dest="runtimefile", default=os.path.join('.', 'runtime.csv'), help="runtime filepath")
     argparser.add_argument("-l", "--llvm-file", dest="llvms", default=os.path.join('.', 'llvms'), help="LLVM filepath")
     argparser.add_argument("-b", "--build-path", dest="buildfolder", default=os.path.join('.', 'build'), help="LLVM build folder")
     argparser.add_argument("-x", "--expression", dest="regex", default="[a-c]", help="Regular expression")
@@ -141,7 +163,8 @@ if __name__ == '__main__':
 
     logging.basicConfig(filename=args.logfile, filemode='w', level=logging.DEBUG)
 
-    createCSV(args.finalfile)
+    createCSV(args.finalfile, opt=1)
+    createCSV(args.runtimefile, opt=2)
     flagset = pipe(args.flags, readFile, allCombinations)
     folders = findLLVMFolders(args.llvms)
     for flags in tqdm.tqdm(flagset):
@@ -149,7 +172,7 @@ if __name__ == '__main__':
                     flags,
                     breakFlagsIfNeeded,
                     lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
-                    lambda c: run(c, otherflags, args.target, args.regex)
+                    lambda c: run(c, otherflags, args.target, args.regex),
+                    lambda res: save(res, args.finalfile, args.runtimefile)
                 )
-        result = pipe(map(mapFn, folders), lambda arr: map(str, arr))
-        saveInFile(args.finalfile, " ".join(result))
+        pipe(map(mapFn, folders), list)
