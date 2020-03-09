@@ -6,7 +6,6 @@ import argparse
 import sys
 import itertools
 import logging
-import tqdm
 from functools import reduce
 from datetime import datetime
 
@@ -81,7 +80,7 @@ def runProc(command, timeout):
 # less icgrep compile time, less total time, less asm size,
 # standard icgrep compile time, standard total time, standard asm size,
 # aggressive icgrep compile time, aggressive total time, aggressive asm size
-def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="asm"):
+def run(what, otherflags, filename, regex, delimiter=", ", timeout=30, asmFile="asm"):
     output = [str(datetime.now()), filename, regex]
     versionCmd = what + ["--version"]
     output += stripVersions(subprocess.check_output(versionCmd))
@@ -149,9 +148,13 @@ def didFinish(idx):
     return idx <= 0
 
 def betterOrEqualRuntime(lhs, rhs, bias=0.15):
-    compare = list(map(lambda x, y: (x + bias) > y, lhs, rhs))
-    count = reduce(lambda acc, x: 0 if not x else acc + 1, compare, 0)
-    return count >= (len(rhs) / 2)
+    fCount = lambda acc, x: 0 if not x else acc + 1
+    res = []
+    for i in range(0, len(rhs)):
+        compare = list(map(lambda x, y: x < (y + bias), lhs[i], rhs[i]))
+        res.append(reduce(fCount, compare, 0))
+    mostLLVMBetter = reduce(fCount, res, 0) >= (len(rhs) / 2)
+    return mostLLVMBetter
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -173,13 +176,13 @@ if __name__ == '__main__':
     folders = findLLVMFolders(args.llvms)
     initFlags = [[], flagset, None]
     nfolders = 1 if not folders else len(folders) 
-    bestFlagsRuntime = [sys.maxsize] * nfolders
+    bestFlagsRuntime = [[sys.maxsize] * 4] * nfolders
     bestFlags = flagset
     for flags in initFlags:
         converged = False
         idx = len(bestFlags)
         while not converged:
-            (idx, impFlags) = reduceFlags(bestFlags, idx) if flags is None else flags
+            (idx, impFlags) = reduceFlags(bestFlags, idx) if flags is None else (idx, flags)
             mapFn = lambda folder: pipe(
                         impFlags,
                         breakFlagsIfNeeded,
@@ -188,8 +191,8 @@ if __name__ == '__main__':
                         lambda res: save(res, args.finalfile, args.runtimefile)
                     )
             impFlagsRuntime = pipe(map(mapFn, folders), list)
-            if (betterOrEqualRuntime(impFlags, bestFlagsRuntime)):
+            if (betterOrEqualRuntime(impFlagsRuntime, bestFlagsRuntime)):
                 bestFlagsRuntime = impFlagsRuntime
                 bestFlags = impFlags
             converged = flags != None or didFinish(idx)
-        print("\n\n\n\n\n" + str(bestFlags) + "\n\n\n\n\n")
+        logging.info("Best flags: " + str(bestFlags))
