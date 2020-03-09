@@ -140,10 +140,18 @@ def save(res, outfile, runFile):
     (time, command) = runtime[best]
     val = str(time) + ", " + " ".join(command)
     saveInFile(runFile, val)
-    return runtime[best]
+    return pipe(map(lambda t: t[0], runtime), list)
 
-def reduceFlags(flags):
-    return flags
+def reduceFlags(flags, idx):
+    return (idx-1, flags[:idx-1] + flags[idx:])
+
+def didFinish(idx):
+    return idx <= 0
+
+def betterOrEqualRuntime(lhs, rhs, bias=0.15):
+    compare = list(map(lambda x, y: (x + bias) > y, lhs, rhs))
+    count = reduce(lambda acc, x: 0 if not x else acc + 1, compare, 0)
+    return count >= (len(rhs) / 2)
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -163,19 +171,25 @@ if __name__ == '__main__':
     createCSV(args.runtimefile, opt=2)
     flagset = readFile(args.flags)
     folders = findLLVMFolders(args.llvms)
-    bestflags = flagset
     initFlags = [[], flagset, None]
-    for folder in folders:
-        for flags in initFlags:
-            converged = False
-            while not converged:
-                impFlags = reduceFlags(bestflags) if flags is None else flags
-                mapFn = lambda folder: pipe(
-                            impFlags,
-                            breakFlagsIfNeeded,
-                            lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
-                            lambda c: run(c, otherflags, args.target, args.regex),
-                            lambda res: save(res, args.finalfile, args.runtimefile)
-                        )
-                pipe(map(mapFn, folders), list)
-                converged = flags != None or True
+    nfolders = 1 if not folders else len(folders) 
+    bestFlagsRuntime = [sys.maxsize] * nfolders
+    bestFlags = flagset
+    for flags in initFlags:
+        converged = False
+        idx = len(bestFlags)
+        while not converged:
+            (idx, impFlags) = reduceFlags(bestFlags, idx) if flags is None else flags
+            mapFn = lambda folder: pipe(
+                        impFlags,
+                        breakFlagsIfNeeded,
+                        lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
+                        lambda c: run(c, otherflags, args.target, args.regex),
+                        lambda res: save(res, args.finalfile, args.runtimefile)
+                    )
+            impFlagsRuntime = pipe(map(mapFn, folders), list)
+            if (betterOrEqualRuntime(impFlags, bestFlagsRuntime)):
+                bestFlagsRuntime = impFlagsRuntime
+                bestFlags = impFlags
+            converged = flags != None or didFinish(idx)
+        print("\n\n\n\n\n" + str(bestFlags) + "\n\n\n\n\n")
