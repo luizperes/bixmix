@@ -73,7 +73,6 @@
 --disable-peephole
 --disable-adv-copy-opt
 --disable-non-allocatable-phys-copy-opt
---disable-phi-elim-edge-splitting
 --phi-elim-split-all-critical-edges
 --no-phi-elim-live-out-early-exit
 --post-RA-scheduler
@@ -87,7 +86,7 @@
 --enable-aa-sched-mi
 --use-tbaa-in-sched-mi=false
 --combiner-use-tbaa=false
---combiner-split-load-index-false
+--combiner-split-load-index=false
 --disable-dfa-sched
 --disable-sched-cycles
 --disable-sched-reg-pressure
@@ -105,4 +104,4 @@
 --enable-selectiondag-sp=false
 --no-stack-slot-sharing=true
 --disable-sched-hazard
---jump-is-expensive
+--jump-is-expensive 

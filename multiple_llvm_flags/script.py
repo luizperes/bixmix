@@ -31,14 +31,6 @@ def createCSV(filename, delimiter=', ', opt=1):
         with open(filename, 'a') as f:
             f.write(value + "\n")
 
-def allCombinations(args=[]):
-    arr = []
-    for i in range(len(args)):
-        comb = itertools.combinations(args, i + 1)
-        for c in comb:
-            arr.append(list(c))
-    return arr
-
 # apply functions in a pipe, e.g.: 3 |> str |> print would print "3"
 def pipe(data, *funcs):
     for func in funcs:
@@ -120,7 +112,7 @@ def run(what, otherflags, filename, regex, delimiter=", ", timeout=60, asmFile="
 
 def mkname(folder, regex, target, flags, buildfolder):
     buildpath = os.path.join(buildfolder, os.path.join(folder, "bin/icgrep"))
-    command = pipe([buildpath, regex, target], lambda lst: lst + flags)
+    command = [buildpath, regex, target] + flags
     logging.info("root command: " + " ".join(command))
     return command
 
@@ -134,7 +126,7 @@ def findLLVMFolders(llvmsfile):
     if not os.path.exists(llvmsfile):
         return [""]
     else:
-        return pipe(llvmsfile, readFile)
+        return readFile(llvmsfile)
 
 def save(res, outfile, runFile):
     (runtime, output) = res
@@ -165,14 +157,14 @@ if __name__ == '__main__':
 
     createCSV(args.finalfile, opt=1)
     createCSV(args.runtimefile, opt=2)
-    flagset = pipe(args.flags, readFile, allCombinations)
+    flagset = readFile(args.flags)
     folders = findLLVMFolders(args.llvms)
-    for flags in tqdm.tqdm(flagset):
-        mapFn = lambda folder: pipe(
-                    flags,
-                    breakFlagsIfNeeded,
-                    lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
-                    lambda c: run(c, otherflags, args.target, args.regex),
-                    lambda res: save(res, args.finalfile, args.runtimefile)
-                )
-        pipe(map(mapFn, folders), list)
+    flags = flagset
+    mapFn = lambda folder: pipe(
+                flags,
+                breakFlagsIfNeeded,
+                lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
+                lambda c: run(c, otherflags, args.target, args.regex),
+                lambda res: save(res, args.finalfile, args.runtimefile)
+            )
+    pipe(map(mapFn, folders), list)
