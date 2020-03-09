@@ -140,6 +140,10 @@ def save(res, outfile, runFile):
     (time, command) = runtime[best]
     val = str(time) + ", " + " ".join(command)
     saveInFile(runFile, val)
+    return runtime[best]
+
+def reduceFlags(flags):
+    return flags
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -159,12 +163,19 @@ if __name__ == '__main__':
     createCSV(args.runtimefile, opt=2)
     flagset = readFile(args.flags)
     folders = findLLVMFolders(args.llvms)
-    flags = flagset
-    mapFn = lambda folder: pipe(
-                flags,
-                breakFlagsIfNeeded,
-                lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
-                lambda c: run(c, otherflags, args.target, args.regex),
-                lambda res: save(res, args.finalfile, args.runtimefile)
-            )
-    pipe(map(mapFn, folders), list)
+    bestflags = flagset
+    initFlags = [[], flagset, None]
+    for folder in folders:
+        for flags in initFlags:
+            converged = False
+            while not converged:
+                impFlags = reduceFlags(bestflags) if flags is None else flags
+                mapFn = lambda folder: pipe(
+                            impFlags,
+                            breakFlagsIfNeeded,
+                            lambda flgs: mkname(folder, args.regex, args.target, flgs, args.buildfolder),
+                            lambda c: run(c, otherflags, args.target, args.regex),
+                            lambda res: save(res, args.finalfile, args.runtimefile)
+                        )
+                pipe(map(mapFn, folders), list)
+                converged = flags != None or True
