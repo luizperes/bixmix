@@ -1,0 +1,42 @@
+Postgres '.*.(a.c|c.de|b.f|e).*'
+
+real	0m0.225s
+user	0m0.069s
+sys	0m0.021s
+
+real	0m0.050s
+user	0m0.033s
+sys	0m0.013s
+
+real	0m0.820s
+user	0m0.548s
+sys	0m0.030s
+
+real	0m2.827s
+user	0m2.434s
+sys	0m0.093s
+
+real	0m5.347s
+user	0m4.806s
+sys	0m0.199s
+Parabix '.*.(a.c|c.de|b.f|e).*'
+
+real	0m0.044s
+user	0m0.017s
+sys	0m0.008s
+
+real	0m0.025s
+user	0m0.014s
+sys	0m0.011s
+
+real	0m0.025s
+user	0m0.017s
+sys	0m0.008s
+
+real	0m0.025s
+user	0m0.021s
+sys	0m0.004s
+
+real	0m0.025s
+user	0m0.017s
+sys	0m0.008s
